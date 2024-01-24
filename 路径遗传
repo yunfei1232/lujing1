@@ -1,0 +1,228 @@
+import random
+
+# 定义城市坐标和距离矩阵
+cities = {
+    "city1":  (41, 94),
+    "city2":  (37, 84),
+    "city3":  (54, 67),
+    "city4":  (25, 62),
+    "city5":  (7, 64),
+    "city6":  (2, 99),
+    "city7":  (68, 58),
+    "city8":  (71, 44),
+    "city9":  (54, 62),
+    "city10": (83, 69)
+}
+
+# 定义城市之间的航空运输距离和铁路运输距离（以公里为单位）以及每单位的运输成本
+transport_distances = {
+    ("city1", "city2"): {"air": 150, "rail": 100},
+    ("city1", "city3"): {"air": 342, "rail": 595},
+    ("city1", "city4"): {"air": 0, "rail": 822},
+    ("city2", "city3"): {"air": 512, "rail": 757},
+    ("city2", "city6"): {"air": 373, "rail": 456},
+    ("city3", "city4"): {"air": 0, "rail": 331},
+    ("city3", "city5"): {"air": 726, "rail": 529},
+    ("city3", "city6"): {"air": 0, "rail": 244},
+    ("city3", "city7"): {"air": 334, "rail": 417},
+    ("city4", "city5"): {"air": 271, "rail": 349},
+    ("city4", "city7"): {"air": 482, "rail": 351},
+    ("city4", "city8"): {"air": 610, "rail": 450},
+    ("city4", "city9"): {"air": 407, "rail": 422},
+    ("city6", "city7"): {"air": 339, "rail": 313},
+    ("city6", "city10"): {"air": 0, "rail": 613},
+    ("city7", "city8"): {"air": 239, "rail": 237},
+    ("city7", "city10"): {"air": 0, "rail": 377},
+    ("city8", "city9"): {"air": 335, "rail": 324},
+    ("city9", "city10"): {"air":450, "rail": 384},
+}
+
+# 定义一个函数来获取两个城市之间的运输信息
+def get_transport_info(city1, city2):
+    if (city1, city2) in transport_distances:
+        air_distance = transport_distances[(city1, city2)].get("air", 0)
+        rail_distance = transport_distances[(city1, city2)].get("rail", 0)
+
+        if air_distance > 0:
+            time = air_distance / air_speed_km_per_hour
+            return "air", air_distance, time
+        elif rail_distance > 0:
+            time = rail_distance / rail_speed_km_per_hour
+            return "rail", rail_distance, time
+    return "none", 0, 0
+
+# 定义航空运输成本和铁路运输成本（每一公里一吨）
+air_transport_cost_per_km = 20
+rail_transport_cost_per_km = 8
+air_speed_km_per_hour = 120
+rail_speed_km_per_hour = 80
+
+# 创建城市列表（不包括起点和终点）
+cities_list = list(set(city for city_pair in transport_distances.keys() for city in city_pair if city not in ["city1", "city10"]))
+
+
+# 随机生成一个个体，确保起点是city1，终点是city10，并且不需要经过全部城市
+def generate_individual():
+    remaining_cities = cities_list[:]
+    path = ["city1"]
+    while remaining_cities:
+        current_city = path[-1]
+        valid_next_cities = [city for city in remaining_cities if ((current_city, city) in transport_distances)]
+        if not valid_next_cities:
+            break
+        next_city = random.choice(valid_next_cities)
+        path.append(next_city)
+        remaining_cities.remove(next_city)
+    if path[-1] != "city10" and ("city9", "city10") in transport_distances:
+        path.append("city10")
+    individual = [(path[i], path[i + 1]) for i in range(len(path) - 1)]
+    return individual
+
+# 修改计算总距离和成本的函数，确保所有段落都有效
+def calculate_total_distance_and_cost(individual):
+    total_distance = 0
+    total_cost = 0
+    for segment in individual:
+        current_city, next_city = segment
+        if (current_city, next_city) not in transport_distances or (transport_distances[(current_city, next_city)]['air'] == 0 and transport_distances[(current_city, next_city)]['rail'] == 0):
+            return float('inf'), float('inf')
+        air_distance = transport_distances[(current_city, next_city)].get("air", 0)
+        rail_distance = transport_distances[(current_city, next_city)].get("rail", 0)
+        total_distance += air_distance + rail_distance
+        total_cost += air_distance * air_transport_cost_per_km + rail_distance * rail_transport_cost_per_km
+    return total_distance, total_cost
+
+
+def crossover(parent1, parent2):
+    # 找到两个父代中较短的长度
+    min_length = min(len(parent1), len(parent2))
+
+    # 选择一个交叉点
+    crossover_point = random.randint(1, min_length - 1)
+
+    # 初始化子代
+    child1 = []
+    child2 = []
+
+    # 为每个子代选择一个父代的起始部分
+    child1.extend(parent1[:crossover_point])
+    child2.extend(parent2[:crossover_point])
+
+    # 为了维持路径的有效性，我们需要添加一些逻辑来确保每个步骤都是有效的
+    # 这里是一个基本的示例，可能需要根据实际情况进行调整
+    for seg in parent2[crossover_point:]:
+        if child1[-1][1] == seg[0]:
+            child1.append(seg)
+
+    for seg in parent1[crossover_point:]:
+        if child2[-1][1] == seg[0]:
+            child2.append(seg)
+
+    # 确保 child1 和 child2 以 city10 结尾
+    if child1[-1][1] != "city10":
+        child1.append((child1[-1][1], "city10"))
+    if child2[-1][1] != "city10":
+        child2.append((child2[-1][1], "city10"))
+
+    return [child1, child2]
+
+
+def mutate(individual):
+    for i in range(1, len(individual) - 1):
+        if random.random() < mutation_rate:
+            # 选择一个可以交换的段落
+            swap_with = random.randint(1, len(individual) - 2)
+            # 确保交换后的两段仍然有效
+            if individual[i-1][1] == individual[swap_with][0] and individual[i][1] == individual[swap_with-1][1]:
+                individual[i], individual[swap_with] = individual[swap_with], individual[i]
+    return individual
+
+
+
+# 修改计算总距离、成本和时间的函数
+def calculate_total_distance_cost_and_time(individual):
+    total_distance = 0
+    total_cost = 0
+    total_time = 0
+    for segment in individual:
+        current_city, next_city = segment
+        if (current_city, next_city) not in transport_distances:
+            return float('inf'), float('inf'), float('inf')
+        air_distance = transport_distances[(current_city, next_city)].get("air", 0)
+        rail_distance = transport_distances[(current_city, next_city)].get("rail", 0)
+        if air_distance > 0:
+            total_distance += air_distance
+            total_cost += air_distance * air_transport_cost_per_km
+            total_time += air_distance / air_speed_km_per_hour
+        elif rail_distance > 0:
+            total_distance += rail_distance
+            total_cost += rail_distance * rail_transport_cost_per_km
+            total_time += rail_distance / rail_speed_km_per_hour
+    return total_distance, total_cost, total_time
+
+# 修改适应度函数，考虑时间和成本
+def calculate_fitness(individual):
+    total_distance, total_cost, total_time = calculate_total_distance_cost_and_time(individual)
+    if total_distance == float('inf'):
+        return 0
+    return 1 / (cost_weight * total_cost + time_weight * total_time)
+
+# 修改后的参数
+population_size = 200
+mutation_rate = 0.1
+indpb = 0.1
+cxpb = 0.1
+num_generations = 200
+time_weight = 1.0  # 可以根据需要调整这个权重
+cost_weight = 1.0  # 可以根据需要调整这个权重
+
+# 初始化种群
+population = [generate_individual() for _ in range(population_size)]
+
+# 主循环
+for generation in range(num_generations):
+    # 计算适应度，添加一个较大的常数以避免零适应度
+    fitness_values = []
+    for individual in population:
+        total_distance, total_cost = calculate_total_distance_and_cost(individual)
+        fitness = 1.0 / (total_cost + 1000)  # 添加一个较大的常数
+        fitness_values.append(fitness)
+
+    # 如果所有适应度都为零，则重新初始化种群
+    if all(fitness == 0 for fitness in fitness_values):
+        population = [generate_individual() for _ in range(population_size)]
+        continue
+
+    # 新的种群
+    new_population = []
+    while len(new_population) < population_size:
+        if random.random() < cxpb:
+            parent1, parent2 = random.choices(population, weights=fitness_values, k=2)
+            child1, child2 = crossover(parent1, parent2)
+        else:
+            child1 = random.choice(population)
+            child2 = random.choice(population)
+
+        child1 = mutate(child1)
+        child2 = mutate(child2)
+        new_population.extend([child1, child2])
+
+    population = new_population[:population_size]
+
+# 找到最优解
+best_individual = min(population, key=lambda x: calculate_total_distance_cost_and_time(x)[2])
+best_distance, best_cost, best_time = calculate_total_distance_cost_and_time(best_individual)
+
+best_path_details = []
+
+for segment in best_individual:
+    city1, city2 = segment
+    transport_mode, distance, segment_time = get_transport_info(city1, city2)
+    best_path_details.append(f"{city1} to {city2} ({transport_mode}, {distance} km, {segment_time:.2f} hours)")
+
+formatted_best_path = " -> ".join(best_path_details)
+
+print("从 city1 到 city10 的最短运输距离: {:.2f} 公里".format(best_distance))
+print("最短运输路径和细节: {}".format(formatted_best_path))
+print("总运输成本: {:.2f} 元".format(best_cost))
+print("总运输时间: {:.2f} 小时".format(best_time))
