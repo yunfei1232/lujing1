@@ -1,0 +1,272 @@
+import random
+import math
+from itertools import permutations
+
+# 定义城市坐标和距离矩阵
+cities = {
+    "city1":  (41, 94),
+    "city2":  (37, 84),
+    "city3":  (54, 67),
+    "city4":  (25, 62),
+    "city5":  (7, 64),
+    "city6":  (2, 99),
+    "city7":  (68, 58),
+    "city8":  (71, 44),
+    "city9":  (54, 62),
+    "city10": (83, 69)
+}
+
+# 定义城市之间的航空运输距离和铁路运输距离（以公里为单位）以及每单位的运输成本
+transport_distances = {
+    ("city1", "city2"): {"air": 150, "rail": 100},
+    ("city1", "city3"): {"air": 342, "rail": 595},
+    ("city1", "city4"): {"air": 0, "rail": 822},
+    ("city2", "city3"): {"air": 512, "rail": 757},
+    ("city2", "city6"): {"air": 373, "rail": 456},
+    ("city3", "city4"): {"air": 0, "rail": 331},
+    ("city3", "city5"): {"air": 726, "rail": 529},
+    ("city3", "city6"): {"air": 0, "rail": 244},
+    ("city3", "city7"): {"air": 334, "rail": 417},
+    ("city4", "city5"): {"air": 271, "rail": 349},
+    ("city4", "city7"): {"air": 482, "rail": 351},
+    ("city4", "city8"): {"air": 610, "rail": 450},
+    ("city4", "city9"): {"air": 407, "rail": 422},
+    ("city6", "city7"): {"air": 339, "rail": 313},
+    ("city6", "city10"): {"air": 0, "rail": 613},
+    ("city7", "city8"): {"air": 239, "rail": 237},
+    ("city7", "city10"): {"air": 0, "rail": 377},
+    ("city8", "city9"): {"air": 335, "rail": 324},
+    ("city9", "city10"): {"air":450, "rail": 384},
+}
+
+
+# 定义一些全局变量
+air_transport_cost_per_km = 20
+rail_transport_cost_per_km = 8
+air_speed_km_per_hour = 120
+rail_speed_km_per_hour = 80
+
+# 创建城市列表（不包括起点和终点）
+cities_list = list(set(city for city_pair in transport_distances.keys() for city in city_pair if city not in ["city1", "city10"]))
+
+# 定义一个函数来获取两个城市之间的运输信息
+# 获取两个城市之间的运输信息
+def get_transport_info(city1, city2):
+    if (city1, city2) in transport_distances:
+        air_distance = transport_distances[(city1, city2)].get("air", 0)
+        rail_distance = transport_distances[(city1, city2)].get("rail", 0)
+        if air_distance > 0:
+            time = air_distance / air_speed_km_per_hour
+            cost = air_distance * air_transport_cost_per_km
+            return "air", air_distance, time, cost
+        elif rail_distance > 0:
+            time = rail_distance / rail_speed_km_per_hour
+            cost = rail_distance * rail_transport_cost_per_km
+            return "rail", rail_distance, time, cost
+    return "none", 0, 0, 0
+
+# 检查单个路段是否有效
+def is_valid_segment(segment):
+    transport_mode, _, time, cost = get_transport_info(segment[0], segment[1])
+    return transport_mode != "none" and time != 0 and cost != 0
+
+# 检查城市是否有通往其他城市的有效路径
+def has_valid_exit(city, visited):
+    for next_city in cities_list + ["city10"]:
+        if next_city not in visited and (city, next_city) in transport_distances:
+            transport_mode, _, _, _ = get_transport_info(city, next_city)
+            if transport_mode != "none":
+                return True
+    return False
+
+# 深度优先搜索找到一条有效路径
+def dfs_find_valid_path(current_city, path, visited):
+    if current_city == "city10":
+        return path
+
+    for next_city in cities_list + ["city10"]:
+        if next_city not in visited and (current_city, next_city) in transport_distances:
+            segment = (current_city, next_city)
+            if is_valid_segment(segment) and (next_city == "city10" or has_valid_exit(next_city, visited | {next_city})):
+                new_path = path + [segment]
+                new_visited = visited | {next_city}
+                result = dfs_find_valid_path(next_city, new_path, new_visited)
+                if result:
+                    return result
+    return None
+
+# 生成一条有效路径
+def generate_individual():
+    path = dfs_find_valid_path("city1", [], {"city1"})
+    if path:
+        # 确保路径连续
+        for i in range(len(path) - 1):
+            if path[i][1] != path[i + 1][0]:
+                return None  # 如果路径不连续，则返回 None
+        return path
+    return None
+
+
+
+
+# 计算路径的总距离、成本和时间
+def calculate_total_distance_cost_and_time(segments):
+    total_distance = total_cost = total_time = 0
+    for segment in segments:
+        transport_mode, distance, time, cost = get_transport_info(segment[0], segment[1])
+        if transport_mode == "none" or distance == 0 or time == 0 or cost == 0:
+            return float('inf'), float('inf'), float('inf')
+        total_distance += distance
+        total_cost += cost
+        total_time += time
+    return total_distance, total_cost, total_time
+
+# 适应度函数
+# 适应度函数
+def calculate_fitness(path):
+    total_distance, total_cost, total_time = calculate_total_distance_cost_and_time(path)
+    if total_distance == float('inf') or total_cost == 0 or total_time == 0:
+        return 0
+    return 1 / (cost_weight * total_cost + time_weight * total_time)
+
+# 退火算法参数
+initial_temp = 3000  # 初始温度：这是模拟退火算法开始时的“温度”。在模拟退火算法中，温度是一个控制参数，它影响算法探索解空间的方式。初始温度越高，算法在早期阶段接受次优解的可能性越大，这有助于算法跳出局部最优解，探索更广泛的解空间。
+final_temp = 200   # 最终温度：这是算法结束前的温度。当算法运行时，温度会逐渐降低。当温度降到这个值时，算法会停止。较低的最终温度意味着算法会在停止前进行更多的探索。
+alpha = 0.8 # 冷却率：这是每次迭代后温度降低的比率。它决定了温度下降的速度。较低的冷却率意味着温度下降得更慢，算法有更多时间探索解空间。
+num_iterations = 200 # 每个温度级别的迭代次数：这是在每个温度级别上执行的迭代次数。增加迭代次数可以使算法在每个温度级别上进行更深入的搜索。
+time_weight = 1.5 # 时间权重：在评估解决方案的适应度时，运输时间的相对重要性
+cost_weight = 0.5  # 成本权重：在评估解决方案的适应度时，运输成本的相对重要性
+
+
+
+# 计算路径的总成本
+def calculate_total_cost(path):
+    total_cost = 0
+    for city1, city2 in path:
+        _, _, _, cost = get_transport_info(city1, city2)
+        if cost == 0 or cost == float('inf'):
+            return float('inf')
+        total_cost += cost
+    return total_cost
+
+# 获取邻近解
+def get_neighbour(current_path):
+    if len(current_path) <= 3:
+        return current_path
+    path = current_path.copy()
+    city1, city2 = random.sample(path[1:-1], 2)
+    idx1, idx2 = path.index(city1), path.index(city2)
+    path[idx1], path[idx2] = path[idx2], path[idx1]
+    return path
+
+# 退火算法主函数
+def simulated_annealing():
+    current_temp = initial_temp
+    current_path = generate_individual()
+    if not current_path:
+        return None, float('inf')
+    current_cost = calculate_total_cost(current_path)
+    while current_temp > final_temp:
+        for _ in range(num_iterations):
+            neighbour = get_neighbour(current_path)
+            if neighbour is None:
+                continue
+            neighbour_cost = calculate_total_cost(neighbour)
+            if neighbour_cost < current_cost:
+                current_path, current_cost = neighbour, neighbour_cost
+            elif random.uniform(0, 1) < math.exp((current_cost - neighbour_cost) / current_temp):
+                current_path, current_cost = neighbour, neighbour_cost
+        current_temp *= alpha
+    return current_path, current_cost
+
+# 打印最佳路径
+def print_best_path(best_path):
+    if best_path is None:
+        print("未找到有效路径")
+    else:
+        path_str = " -> ".join([f"{city1} to {city2}" for city1, city2 in best_path])
+        print("最佳路径:", path_str)
+
+# 打印路径的详细信息
+def print_path_info(path):
+    total_cost = 0
+    for city1, city2 in path:
+        transport_mode, distance, time, cost = get_transport_info(city1, city2)
+        if transport_mode != "none":
+            total_cost += cost
+            print(f"从 {city1} 到 {city2}：方式 - {transport_mode}, 距离 - {distance} km, 时间 - {time:.2f} 小时, 成本 - {cost:.2f} 元")
+        else:
+            print(f"从 {city1} 到 {city2} 的段无效")
+            break
+    return total_cost
+
+# 重新排序路径
+def reorder_path(path):
+    if not path:
+        return None
+
+    reordered_path = [path[0]]
+    remaining_segments = set(path[1:])
+
+    while remaining_segments:
+        last_city = reordered_path[-1][1]
+        next_segment = next((seg for seg in remaining_segments if seg[0] == last_city), None)
+
+        if not next_segment:
+            return None  # 无法找到合适的下一段
+
+        reordered_path.append(next_segment)
+        remaining_segments.remove(next_segment)
+
+    return reordered_path
+
+
+# 执行模拟退火算法并打印结果
+best_path, best_cost = simulated_annealing()
+if best_path and best_cost != float('inf'):
+    reordered_best_path = reorder_path(best_path)
+    if reordered_best_path:
+        print("找到有效路径:")
+        for segment in reordered_best_path:
+            print(f"从 {segment[0]} 到 {segment[1]}")
+
+        # 计算总成本和总时间
+        total_distance, total_cost, total_time = calculate_total_distance_cost_and_time(reordered_best_path)
+        print("总成本:", total_cost)
+        print("总运输时间: {:.2f} 小时".format(total_time))
+
+        # 打印每段路径的详细信息
+        for segment in reordered_best_path:
+            transport_mode, distance, time, cost = get_transport_info(segment[0], segment[1])
+            print(
+                f"从 {segment[0]} 到 {segment[1]}：方式 - {transport_mode}, 距离 - {distance} km, 时间 - {time:.2f} 小时, 成本 - {cost:.2f} 元")
+    else:
+        print("无法重新排序路径，可能存在无效段")
+else:
+    print("未找到有效路径")
+
+
+
+
+模拟退火算法每次运行产生不同的结果是因为它是一种基于概率的优化算法。它使用随机性来探索解空间，寻找全局最优解。这些特性是模拟退火算法的核心组成部分，它们允许算法避免陷入局部最优解，但也意味着每次运行时可能得到不同的结果。
+
+以下是一些关键因素，导致每次运行模拟退火算法时结果的不同：
+
+随机初始解：算法从一个随机生成的解开始搜索，这个初始解可能每次都不同。
+
+随机邻居选择：在搜索过程中，算法会随机选择当前解的“邻居”，即对当前解进行小的随机改变。这个随机选择过程会导致每次迭代可能探索不同的路径。
+
+概率性接受规则：即使新的解不如当前解，算法也有一定概率接受它。这个概率随着算法的迭代而变化，并取决于解的质量和“温度”参数。这增加了算法的随机性。
+
+退火调度：退火算法的核心是温度参数的下降，这影响接受较差解的概率。温度下降的速度（冷却速率）和最终温度的选择也会影响搜索过程。
+
+要获得一致的结果，可以采取以下措施之一：
+
+设定随机种子：在算法开始前设置一个固定的随机种子，可以保证每次运行时的随机选择都是一样的。这样，每次运行时都会得到相同的结果。
+
+多次运行和结果平均：多次运行算法并取平均结果或最佳结果。这是常用的方法，可以提供更稳定的解决方案。
+
+使用更确定性的算法：如果一致性比找到全局最优解更重要，可以考虑使用更确定性的优化算法，如贪心算法或动态规划，但它们可能不保证找到全局最优解。
+
+在您的应用中，选择哪种方法取决于您对解的质量和一致性的需求。
+
