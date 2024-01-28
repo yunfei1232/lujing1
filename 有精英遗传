@@ -169,14 +169,14 @@ def calculate_fitness(individual):
 
 # 修改后的参数
 population_size = 200    #种群大小
-mutation_rate = 0.1    #变异率
-crossover_rate = 0.2  #交叉概率
-gene_mutation_rate = 0.1   #独立基因突变概率
+mutation_rate = 0.5    #变异率
+crossover_rate = 0.5  #交叉概率
+gene_mutation_rate = 0.5   #独立基因突变概率
 num_generations = 200  #迭代次数
 time_weight = 1.8  # 可以根据需要调整这个权重
 cost_weight = 1.0  # 可以根据需要调整这个权重
 elite_size = 5    #精英保留个体数量
-tournament_size = 3   #锦标赛选择大小
+tournament_size = 20   #锦标赛选择大小
 
 # 初始化种群
 population = [generate_individual() for _ in range(population_size)]
