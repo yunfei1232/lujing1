@@ -109,7 +109,10 @@ def calculate_total_distance_cost_and_time_cached(individual, cache):
 def dominates(individual1, individual2, cache):
     distance1, cost1, time1 = calculate_total_distance_cost_and_time_cached(individual1, cache)
     distance2, cost2, time2 = calculate_total_distance_cost_and_time_cached(individual2, cache)
-    return (distance1 <= distance2 and cost1 <= cost2 and time1 <= time2) and (distance1 < distance2 or cost1 < cost2 or time1 < time2)
+    # 检查在所有目标上都不差于对方，并且至少在一个目标上更好
+    better_in_any = (cost1 < cost2 or time1 < time2)
+    not_worse_in_all = (cost1 <= cost2 and time1 <= time2)
+    return better_in_any and not_worse_in_all
 
 
 def non_dominated_sort(population):
@@ -200,10 +203,10 @@ def mutate(individual):
 
 # 初始化种群
 population_size = 200
-mutation_rate = 0.5
-crossover_rate = 0.5
+mutation_rate = 0.1
+crossover_rate = 0.4
 num_generations = 200
-time_weight = 1.0
+time_weight = 1.8
 cost_weight = 1.0
 
 population = [generate_individual() for _ in range(population_size)]
@@ -251,7 +254,6 @@ for segment in best_individual:
 
 formatted_best_path = " -> ".join(best_path_details)
 
-print("从 city1 到 city10 的最短运输距离: {:.2f} 公里".format(best_distance))
-print("最短运输路径和细节: {}".format(formatted_best_path))
+print("最优运输路径和细节: {}".format(formatted_best_path))
 print("总运输成本: {:.2f} 元".format(best_cost))
 print("总运输时间: {:.2f} 小时".format(best_time))
