@@ -1,0 +1,200 @@
+import random
+import copy
+
+# 定义城市坐标和距离矩阵
+cities = {
+    "city1":  (41, 94),
+    "city2":  (37, 84),
+    "city3":  (54, 67),
+    "city4":  (25, 62),
+    "city5":  (7, 64),
+    "city6":  (2, 99),
+    "city7":  (68, 58),
+    "city8":  (71, 44),
+    "city9":  (54, 62),
+    "city10": (83, 69)
+}
+
+# 定义城市之间的航空运输距离和铁路运输距离（以公里为单位）以及每单位的运输成本
+transport_distances = {
+    ("city1", "city2"): {"air": 150, "rail": 100},
+    ("city1", "city3"): {"air": 342, "rail": 595},
+    ("city1", "city4"): {"air": 0, "rail": 822},
+    ("city2", "city3"): {"air": 512, "rail": 757},
+    ("city2", "city6"): {"air": 373, "rail": 456},
+    ("city3", "city4"): {"air": 0, "rail": 331},
+    ("city3", "city5"): {"air": 726, "rail": 529},
+    ("city3", "city6"): {"air": 0, "rail": 244},
+    ("city3", "city7"): {"air": 334, "rail": 417},
+    ("city4", "city5"): {"air": 271, "rail": 349},
+    ("city4", "city7"): {"air": 482, "rail": 351},
+    ("city4", "city8"): {"air": 610, "rail": 450},
+    ("city4", "city9"): {"air": 407, "rail": 422},
+    ("city6", "city7"): {"air": 339, "rail": 313},
+    ("city6", "city10"): {"air": 0, "rail": 613},
+    ("city7", "city8"): {"air": 239, "rail": 237},
+    ("city7", "city10"): {"air": 0, "rail": 377},
+    ("city8", "city9"): {"air": 335, "rail": 324},
+    ("city9", "city10"): {"air":450, "rail": 384},
+}
+
+
+# 定义一些全局变量
+air_transport_cost_per_km = 20
+rail_transport_cost_per_km = 8
+air_speed_km_per_hour = 120
+rail_speed_km_per_hour = 80
+
+# 创建城市列表
+cities_list = list(set(city for city_pair in transport_distances.keys() for city in city_pair if city not in ["city1", "city10"]))
+
+# 获取两个城市之间的运输信息
+def get_transport_info(city1, city2):
+    if (city1, city2) in transport_distances:
+        air_distance = transport_distances[(city1, city2)].get("air", 0)
+        rail_distance = transport_distances[(city1, city2)].get("rail", 0)
+        if air_distance > 0:
+            time = air_distance / air_speed_km_per_hour
+            cost = air_distance * air_transport_cost_per_km
+            return "air", air_distance, time, cost
+        elif rail_distance > 0:
+            time = rail_distance / rail_speed_km_per_hour
+            cost = rail_distance * rail_transport_cost_per_km
+            return "rail", rail_distance, time, cost
+    return "none", 0, 0, 0
+
+# 检查路径的每个段是否有效
+def is_valid_segment(segment):
+    _, _, time, cost = get_transport_info(segment[0], segment[1])
+    return time != 0 and cost != 0
+
+# 深度优先搜索生成有效路径
+def dfs_find_valid_path(current_city, path, visited):
+    if current_city == "city10":
+        return path
+
+    for next_city in cities_list + ["city10"]:
+        if next_city not in visited and is_valid_segment((current_city, next_city)):
+            new_path = path + [(current_city, next_city)]
+            new_visited = visited | {next_city}
+            result = dfs_find_valid_path(next_city, new_path, new_visited)
+            if result:
+                return result
+    return None
+
+
+# 生成有效的个体
+def generate_individual():
+    return dfs_find_valid_path("city1", [], {"city1"})
+
+# 计算路径的总距离、成本和时间
+def calculate_total_distance_cost_and_time(segments):
+    total_distance = total_cost = total_time = 0
+    for segment in segments:
+        _, distance, time, cost = get_transport_info(segment[0], segment[1])
+        total_distance += distance
+        total_cost += cost
+        total_time += time
+    return total_distance, total_cost, total_time
+
+
+def calculate_fitness(path, time_weight, cost_weight):
+    total_distance, total_cost, total_time = calculate_total_distance_cost_and_time(path)
+
+    if total_distance == float('inf') or total_cost == 0 or total_time == 0:
+        return 0
+
+    # The fitness is defined as the reciprocal of the weighted combination of cost and time
+    fitness = 1 / (cost_weight * total_cost + time_weight * total_time)
+    return fitness
+
+
+# 粒子类
+class Particle:
+    def __init__(self):
+        self.position = generate_initial_solution()
+        self.velocity = []
+        self.best_position = copy.deepcopy(self.position)
+        self.best_fitness = calculate_fitness(self.position, time_weight, cost_weight)
+
+# 生成初始解
+def generate_initial_solution():
+    # 可以使用之前定义的 generate_individual 函数
+    return generate_individual()
+
+# 更新粒子的速度（需要根据离散问题进行特殊处理）
+def update_velocity(particle, gbest_position, w, c1, c2):
+    # 速度更新逻辑，考虑粒子当前位置、个人最佳和全局最佳
+    pass
+
+# 更新粒子的位置（需要根据离散问题进行特殊处理）
+def update_position(particle):
+    # 位置更新逻辑，根据新的速度
+    pass
+
+# 初始化参数
+num_particles = 50
+max_iterations = 100
+w = 0.5  # 惯性权重
+c1 = 2.0  # 个体学习因子
+c2 = 2.0  # 社会学习因子
+time_weight = 1.8
+cost_weight = 1.0
+
+# 初始化粒子群
+particles = [Particle() for _ in range(num_particles)]
+
+# 初始化全局最佳
+gbest_cost = float('inf')
+gbest_position = None
+
+# 更新全局最佳
+def update_global_best(particle, gbest_cost, gbest_position):
+    _, cost, _ = calculate_total_distance_cost_and_time(particle.position)
+    if cost < gbest_cost:
+        gbest_cost = cost
+        gbest_position = copy.deepcopy(particle.position)
+    return gbest_cost, gbest_position
+
+# 粒子群优化主循环
+for iteration in range(max_iterations):
+    for particle in particles:
+        # 更新每个粒子的速度和位置
+        update_velocity(particle, gbest_position, w, c1, c2)
+        update_position(particle)
+
+        # 更新个体最佳
+        current_fitness = calculate_fitness(particle.position, time_weight, cost_weight)
+        if current_fitness > particle.best_fitness:
+            particle.best_fitness = current_fitness
+            particle.best_position = copy.deepcopy(particle.position)
+
+        # 更新全局最佳
+        gbest_cost, gbest_position = update_global_best(particle, gbest_cost, gbest_position)
+
+# 找到最优解
+_, best_cost, _ = calculate_total_distance_cost_and_time(gbest_position)
+print("最佳路径的总运输成本: {:.2f} 元".format(best_cost))
+
+
+
+
+# 输出最优解的详细信息
+def print_best_path_details(best_path):
+    print("最佳路径详细信息:")
+    total_distance, total_cost, total_time = 0, 0, 0
+
+    for segment in best_path:
+        city1, city2 = segment
+        transport_mode, distance, time, cost = get_transport_info(city1, city2)
+        total_distance += distance
+        total_cost += cost
+        total_time += time
+        print(f"{city1} 到 {city2}: 方式 {transport_mode}, 距离 {distance} 公里, 时间 {time:.2f} 小时, 成本 {cost:.2f} 元")
+
+    print(f"运输总距离: {total_distance:.2f} 公里")
+    print(f"运输总时间: {total_time:.2f} 小时")
+    print(f"运输总成本: {total_cost:.2f} 元")
+
+# 输出最优路径的详细信息
+print_best_path_details(gbest_position)
